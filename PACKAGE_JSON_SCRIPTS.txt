@@ -1,0 +1,6 @@
+Add these lines inside "scripts" in package.json (keep your existing ones, mind the commas):
+
+    "db:migrate": "node db/migrate.mjs",
+    "db:seed:accounts": "node db/seeds/01_accounts.mjs",
+    "db:seed:pets": "node db/seeds/02_pets.mjs",
+    "db:seed": "npm run db:seed:accounts && npm run db:seed:pets"
