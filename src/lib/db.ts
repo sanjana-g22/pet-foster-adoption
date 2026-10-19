@@ -1,5 +1,9 @@
 // Single shared PostgreSQL pool + a transaction helper that tells the database WHO is acting.
-import { Pool, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
+import { Pool, types, type PoolClient, type QueryResult, type QueryResultRow } from "pg";
+
+types.setTypeParser(1082, (v) => v); // DATE as "YYYY-MM-DD" text (no timezone shifts)
+types.setTypeParser(1700, (v) => parseFloat(v)); // NUMERIC as number
+types.setTypeParser(20, (v) => parseInt(v, 10)); // BIGINT / count as number
 
 declare global {
   // eslint-disable-next-line no-var
