@@ -12,13 +12,13 @@ export default async function Navbar() {
   }
 
   return (
-    <header className="bg-teal-700 text-white">
+    <header className="bg-teal-700 text-white print:hidden">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-6">
           <Link href="/" className="text-lg font-bold">
             🐾 Pawfect Match
           </Link>
-          <Link href="/" className="text-sm hover:underline">
+          <Link href="/pets" className="text-sm hover:underline">
             Browse pets
           </Link>
         </div>
