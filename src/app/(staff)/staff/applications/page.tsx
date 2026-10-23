@@ -1,7 +1,7 @@
 
 import { requirePage } from "@/lib/page-auth";
 import { query } from "@/lib/db";
-import StaffApplicationActions from "@/components/StaffApplicationActions";
+import StaffApplicationActions from "@/components/StaffApplicationReview";
 
 export default async function Page() {
   await requirePage("staff", "admin");
@@ -58,10 +58,15 @@ export default async function Page() {
 
                 <td className="p-3">
                   {a.adopter_name}
-                  <div className="text-gray-500">{a.adopter_email}</div>
+                  <div className="text-gray-500">
+                    {a.adopter_email}
+                  </div>
                 </td>
 
-                <td className="max-w-sm p-3">{a.message || "—"}</td>
+                <td className="max-w-sm p-3">
+                  {a.message || "—"}
+                </td>
+
                 <td className="p-3">{a.status}</td>
 
                 <td className="p-3">
@@ -79,7 +84,10 @@ export default async function Page() {
 
             {result.rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-gray-500">
+                <td
+                  colSpan={7}
+                  className="p-6 text-center text-gray-500"
+                >
                   No applications found.
                 </td>
               </tr>
