@@ -5,41 +5,79 @@ import LogoutButton from "./LogoutButton";
 
 export default async function Navbar() {
   let user: CurrentUser | null = null;
+
   try {
     user = await getCurrentUser();
   } catch {
-    user = null; // never let a DB hiccup break every page
+    user = null;
   }
 
   return (
-    <header className="bg-teal-700 text-white print:hidden">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-6">
-          <Link href="/" className="text-lg font-bold">
-            🐾 Pawfect Match
+    <header className="sticky top-0 z-40 border-b border-[#e4e4d9] bg-[#faf8f2]/95 text-[#24372d] backdrop-blur-md print:hidden">
+      <nav
+        aria-label="Main navigation"
+        className="page-shell flex min-h-[76px] flex-wrap items-center justify-between gap-4 py-3"
+      >
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#245c45] text-xl text-white">
+              🐾
+            </span>
+
+            <span>
+              <span className="block text-lg font-extrabold tracking-tight text-[#245c45]">
+                Pawfect Match
+              </span>
+              <span className="hidden text-[11px] text-[#69756c] sm:block">
+                Find your forever friend
+              </span>
+            </span>
           </Link>
-          <Link href="/pets" className="text-sm hover:underline">
-            Browse pets
+
+          <Link
+            href="/pets"
+            className="hidden rounded-full px-3 py-2 text-sm font-semibold text-[#4c5d50] hover:bg-[#e8efe7] hover:text-[#245c45] sm:inline-flex"
+          >
+            Find a pet
           </Link>
         </div>
-        <div className="flex items-center gap-3 text-sm">
+
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <Link
+            href="/pets"
+            className="rounded-full px-3 py-2 font-semibold text-[#4c5d50] hover:bg-[#e8efe7] sm:hidden"
+          >
+            Pets
+          </Link>
+
           {user ? (
             <>
-              <Link href={ROLE_HOME[user.role]} className="hover:underline">
-                {user.fullName} <span className="opacity-75">({user.role})</span>
+              <Link
+                href={ROLE_HOME[user.role]}
+                className="max-w-48 truncate rounded-full px-3 py-2 font-semibold text-[#245c45] hover:bg-[#e8efe7]"
+              >
+                {user.fullName}
+                <span className="ml-1 hidden text-xs font-normal capitalize text-[#69756c] md:inline">
+                  ({user.role})
+                </span>
               </Link>
+
               <LogoutButton />
             </>
           ) : (
             <>
-              <Link href="/login" className="hover:underline">
+              <Link
+                href="/login"
+                className="rounded-full px-4 py-2 font-semibold text-[#245c45] hover:bg-[#e8efe7]"
+              >
                 Log in
               </Link>
+
               <Link
                 href="/register"
-                className="rounded-md bg-white px-3 py-1 font-medium text-teal-800 hover:bg-teal-50"
+                className="rounded-full bg-[#245c45] px-5 py-2.5 font-bold text-white shadow-sm hover:bg-[#194733]"
               >
-                Register
+                Get started
               </Link>
             </>
           )}
