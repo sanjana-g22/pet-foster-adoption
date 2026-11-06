@@ -1,10 +1,24 @@
 -- Lifecycle / integrity tests (Person A)
 -- Runs inside a transaction and ROLLS BACK, so it leaves no data behind.
--- Paste the whole file into the Neon SQL Editor and run it. Last query shows PASS/FAIL.
+-- Run npm run db:test:lifecycle after RBAC setup. Owner-only fixtures; all changes roll back.
 
 BEGIN;
 
 CREATE TEMP TABLE test_results (test text, result text);
+
+-- Maintenance test harness only: establish a signed test actor. This helper is
+-- temporary and cannot be executed by the restricted web login.
+CREATE FUNCTION pg_temp.set_test_actor(uid int) RETURNS void AS $$
+BEGIN
+ PERFORM set_config('app.current_user_id', uid::text, true);
+ PERFORM set_config('app.context_signature', encode(public.hmac(uid::text || ':' || txid_current()::text,
+   (SELECT secret FROM app_security.context_key WHERE singleton), 'sha256'), 'hex'), true);
+END $$ LANGUAGE plpgsql;
+DO $$ DECLARE uid int; BEGIN
+ INSERT INTO users(email,password_hash,full_name,role_id)
+ VALUES('lifecycle-test-actor@example.test','x','Lifecycle Test Actor',(SELECT id FROM roles WHERE name='admin')) RETURNING id INTO uid;
+ PERFORM pg_temp.set_test_actor(uid);
+END $$;
 
 -- helpers (temporary, vanish at rollback)
 CREATE FUNCTION pg_temp.fn_new_pet(p_name text, p_species species_type DEFAULT 'dog')
@@ -124,9 +138,9 @@ BEGIN
   f := pg_temp.fn_new_foster('test_t6_foster@test.local', 1);
   p1 := pg_temp.fn_new_pet('TEST_t6a'); PERFORM pg_temp.fn_make_available(p1);
   p2 := pg_temp.fn_new_pet('TEST_t6b'); PERFORM pg_temp.fn_make_available(p2);
-  PERFORM sp_place_in_foster(p1, f);
+  PERFORM sp_place_in_foster(p1, f, NULL, app_security.actor_id());
   BEGIN
-    PERFORM sp_place_in_foster(p2, f);
+    PERFORM sp_place_in_foster(p2, f, NULL, app_security.actor_id());
     INSERT INTO test_results VALUES ('T06 foster over capacity rejected', 'FAIL - no error');
   EXCEPTION WHEN SQLSTATE 'PT003' THEN
     INSERT INTO test_results VALUES ('T06 foster over capacity rejected', 'PASS');
@@ -140,7 +154,7 @@ BEGIN
   fa := pg_temp.fn_new_foster('test_t7_a@test.local', 5);
   fb := pg_temp.fn_new_foster('test_t7_b@test.local', 5);
   p := pg_temp.fn_new_pet('TEST_t7'); PERFORM pg_temp.fn_make_available(p);
-  PERFORM sp_place_in_foster(p, fa);
+  PERFORM sp_place_in_foster(p, fa, NULL, app_security.actor_id());
   BEGIN
     INSERT INTO foster_placements (pet_id, foster_user_id) VALUES (p, fb);
     INSERT INTO test_results VALUES ('T07 second active placement rejected', 'FAIL - no error');
@@ -170,7 +184,7 @@ DECLARE admin_id int; p int; n int;
 BEGIN
   admin_id := pg_temp.fn_new_user('test_t9_admin@test.local', 'admin');
   p := pg_temp.fn_new_pet('TEST_t9');
-  PERFORM set_config('app.current_user_id', admin_id::text, true);
+  PERFORM pg_temp.set_test_actor(admin_id);
   UPDATE pets SET description = 'audit check' WHERE id = p;
   SELECT count(*) INTO n FROM audit_log
   WHERE table_name = 'pets' AND record_id = p::text
@@ -210,8 +224,8 @@ DECLARE f int; p int; pl int; st pet_status;
 BEGIN
   f := pg_temp.fn_new_foster('test_t12@test.local', 2);
   p := pg_temp.fn_new_pet('TEST_t12'); PERFORM pg_temp.fn_make_available(p);
-  pl := sp_place_in_foster(p, f);
-  PERFORM sp_end_placement(pl, 'foster_request');
+  pl := sp_place_in_foster(p, f, NULL, app_security.actor_id());
+  PERFORM sp_end_placement(pl, 'foster_request', app_security.actor_id());
   SELECT status INTO st FROM pets WHERE id = p;
   INSERT INTO test_results VALUES ('T12 ending placement returns pet to Available',
     CASE WHEN st = 'available' THEN 'PASS' ELSE 'FAIL - ' || st END);

@@ -24,8 +24,7 @@ export default async function PetDetailPage({ params }: { params: Promise<{ id: 
     days_in_shelter: number; fully_vaccinated: boolean;
   }>(
     `SELECT ${PET_COLS}, (CURRENT_DATE - p.intake_date) AS days_in_shelter,
-            NOT EXISTS (SELECT 1 FROM required_vaccines rv WHERE rv.species = p.species AND NOT EXISTS
-              (SELECT 1 FROM vaccinations v WHERE v.pet_id = p.id AND v.vaccine_name = rv.vaccine_name AND v.expires_on >= CURRENT_DATE)) AS fully_vaccinated
+            app_security.fully_vaccinated(p.id) AS fully_vaccinated
        FROM pets p WHERE p.id = $1`, [id])).rows[0];
   if (!pet) notFound();
 
@@ -38,7 +37,7 @@ export default async function PetDetailPage({ params }: { params: Promise<{ id: 
   const privileged = staff || fosterOfPet;
 
   const timeline = (await query<{ from_status: string | null; to_status: string; changed_at: Date; changed_by_name: string | null; note: string | null }>(
-    "SELECT from_status, to_status, changed_at, changed_by_name, note FROM v_pet_timeline WHERE pet_id=$1 ORDER BY changed_at, history_id", [id])).rows;
+    "SELECT from_status, to_status, changed_at, changed_by_name, note FROM app_security.public_timeline($1) ORDER BY changed_at, history_id", [id])).rows;
   const vaccinations = privileged ? (await query<{ vaccine_name: string; vaccinated_on: string; expires_on: string }>(
     "SELECT vaccine_name, vaccinated_on, expires_on FROM vaccinations WHERE pet_id=$1 ORDER BY vaccinated_on DESC", [id])).rows : [];
   const medical = privileged ? (await query<{ record_type: string; record_date: string; diagnosis: string | null; treatment: string | null; vet_name: string | null }>(

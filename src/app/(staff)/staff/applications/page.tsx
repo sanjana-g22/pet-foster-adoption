@@ -36,7 +36,7 @@ export default async function Page() {
             </h1>
 
             <p className="mt-3 max-w-2xl leading-7 text-[#69756c]">
-              Review each application, read the adopter's message and decide
+              Review each application, read the adopter&apos;s message and decide
               on the next step. Pending applications are listed first.
             </p>
           </div>

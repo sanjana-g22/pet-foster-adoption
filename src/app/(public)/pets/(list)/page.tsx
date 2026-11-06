@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Pagination from "@/components/Pagination";
 import PetCard from "@/components/PetCard";
 import { searchPets } from "@/lib/pets";
@@ -169,9 +170,9 @@ export default async function BrowsePage({
                 companion may be waiting under a different search.
               </p>
 
-              <a href="/pets" className="primary-button mt-5">
+              <Link href="/pets" className="primary-button mt-5">
                 Clear filters
-              </a>
+              </Link>
             </div>
           ) : (
             <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
