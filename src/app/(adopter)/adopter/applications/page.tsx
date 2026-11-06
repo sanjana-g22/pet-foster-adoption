@@ -6,7 +6,14 @@ export default function ApplicationsPage() {
   const [apps,setApps] = useState<AppRow[]>([]);
   const [petId,setPetId] = useState(""); const [message,setMessage] = useState(""); const [notice,setNotice] = useState("");
   async function load(){ const r=await fetch("/api/applications"); const d=await r.json(); if(r.ok) setApps(d.applications); else setNotice(d.error ?? "Could not load applications."); }
-  useEffect(()=>{ void load(); },[]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/applications", { signal: controller.signal })
+      .then(async (r) => ({ ok: r.ok, data: await r.json() }))
+      .then(({ ok, data }) => { if (ok) setApps(data.applications); else setNotice(data.error ?? "Could not load applications."); })
+      .catch((error: unknown) => { if (!controller.signal.aborted) setNotice(error instanceof Error ? error.message : "Could not load applications."); });
+    return () => controller.abort();
+  }, []);
   async function submit(e:FormEvent){ e.preventDefault(); setNotice("Submitting…"); const r=await fetch("/api/applications",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pet_id:Number(petId),message})}); const d=await r.json(); setNotice(r.ok?"Application submitted!":d.error??"Submission failed."); if(r.ok){setPetId("");setMessage(""); await load();} }
   return <main className="mx-auto max-w-4xl px-4 py-10"><h1 className="text-3xl font-bold text-teal-800">My applications</h1><p className="mt-2 text-gray-600">Submit an application using a pet ID from the pet browsing page, then track its status here.</p>
     <form onSubmit={submit} className="mt-6 space-y-3 rounded-xl border p-5"><h2 className="font-semibold">Apply for a pet</h2><label className="block text-sm">Pet ID<input required type="number" min="1" value={petId} onChange={e=>setPetId(e.target.value)} className="mt-1 w-full rounded-md border p-2"/></label><label className="block text-sm">Why would you be a good match?<textarea required maxLength={4000} value={message} onChange={e=>setMessage(e.target.value)} className="mt-1 min-h-24 w-full rounded-md border p-2"/></label><button className="rounded-md bg-teal-700 px-4 py-2 text-white">Submit application</button>{notice&&<p className="text-sm">{notice}</p>}</form>

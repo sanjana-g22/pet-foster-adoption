@@ -26,21 +26,9 @@ export async function POST(request: Request) {
     if (!Number.isInteger(petId) || petId <= 0 || message.length > 4000) {
       throw new ApiError(400, "Provide a valid pet_id and a message under 4000 characters");
     }
-    const result = await withTransaction(user.id, async (client) => {
-      const pet = await client.query("SELECT id, status FROM pets WHERE id=$1 FOR UPDATE", [petId]);
-      if (!pet.rows[0]) throw new ApiError(404, "Pet not found");
-      if (!["available", "in_foster"].includes(pet.rows[0].status)) {
-        throw new ApiError(409, "This pet is not currently accepting applications");
-      }
-      return client.query(
-        `INSERT INTO applications (pet_id, adopter_user_id, message)
-         VALUES ($1,$2,$3)
-         ON CONFLICT (pet_id, adopter_user_id) DO UPDATE SET message=EXCLUDED.message
-         WHERE applications.status IN ('rejected','withdrawn')
-         RETURNING id, pet_id, status, submitted_at`,
-        [petId, user.id, message]
-      );
-    });
+    const result = await withTransaction(user.id, (client) => client.query(
+      "SELECT * FROM app_security.submit_application($1,$2)", [petId, message]
+    ));
     if (!result.rows[0]) throw new ApiError(409, "You already have an application for this pet");
     return NextResponse.json({ application: result.rows[0] }, { status: 201 });
   } catch (error) { return toResponse(error); }

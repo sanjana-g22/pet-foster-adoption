@@ -5,12 +5,11 @@ import { pipeline } from '@xenova/transformers';
 
 dotenv.config({ path: '.env.local' });
 
-const { DATABASE_URL } = process.env;
-if (!DATABASE_URL) throw new Error('DATABASE_URL missing in .env.local');
+const { DATABASE_URL_DIRECT } = process.env;
+if (!DATABASE_URL_DIRECT) throw new Error('DATABASE_URL_DIRECT missing in .env.local (embedding generation is a maintenance operation)');
 
 const pool = new pg.Pool({
-  connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  connectionString: DATABASE_URL_DIRECT,
 });
 
 const MODEL = 'Xenova/all-MiniLM-L6-v2';

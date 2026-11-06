@@ -25,6 +25,7 @@ const CUSTOM_STATUS: Record<string, number> = {
 
 // PostgreSQL standard codes
 const STANDARD: Record<string, [number, string]> = {
+  "42501": [403, "Database permission denied for this action"],
   "23505": [409, "A record with this value already exists"],
   "23503": [409, "A related record does not exist, or this record is still in use"],
   "23502": [400, "A required field is missing"],
