@@ -1,105 +1,161 @@
-# Pawfect Match — Pet Foster & Adoption Management System
+# Pawfect Match
 
-A full-stack web application for managing the pet fostering and adoption lifecycle. The platform brings together pet records, foster placements, medical history, adoption applications, intelligent pet matching, and post-adoption follow-ups in one system.
+### Pet Foster & Adoption Management System
 
-## Database RBAC setup
+Pawfect Match is a full-stack application for managing shelter pets, foster placements, adoption applications, medical records, and post-adoption follow-ups. It combines role-specific dashboards with PostgreSQL-enforced permissions and semantic pet recommendations.
 
-Follow [docs/DB_RBAC_GUIDE.md](docs/DB_RBAC_GUIDE.md) for the migration, restricted connection setup, tests and deployment steps. Existing installations must run `npm run db:migrate` and `npm run db:rbac:setup` before restarting the web app. Keep the owner connection in `DATABASE_URL_DIRECT`; the setup command creates the restricted `DATABASE_URL`.
+Built with **Next.js, React, TypeScript, PostgreSQL, Neon, and pgvector**.
 
-## Overview
+## Features
 
-Pawfect Match helps shelters and rescue organizations manage pets throughout their journey from intake to fostering and adoption. It provides role-based interfaces for administrators, staff, fosters, and adopters, with a PostgreSQL database supporting operational workflows, reporting, and search.
-
-### Key Features
-
-- **Pet Management:** Maintain pet profiles, species, breeds, age, temperament, health information, and adoption status.
-- **Foster Management:** Manage foster profiles, placement records, capacity, and daily updates.
-- **Medical Records:** Maintain medical history, vaccination records, and relevant health information.
-- **Adoption Applications:** Allow adopters to submit applications for pets and track application statuses.
-- **Adoption Workflows:** Support application review, adoption decisions, and lifecycle tracking.
-- **Pawfect Match:** Use semantic embeddings to identify pets relevant to an adopter's preferences and lifestyle.
-- **Adopter Profiles:** Store adopter preferences and lifestyle information to support pet matching.
-- **Follow-up Management:** Support scheduled post-adoption follow-ups and overdue follow-up tracking.
-- **Admin Analytics:** Display adoption pipeline metrics, application counts, follow-up metrics, and average time in the system by species.
-- **User and Role Management:** Support role-based access for administrators, staff, fosters, and adopters.
-- **Audit Logging:** Maintain a record of relevant database changes and system activity.
-- **Database Search and Reporting:** Use PostgreSQL views, indexes, full-text search, triggers, and stored procedures to support application functionality and reporting.
+- **Pet management:** intake records, searchable listings, filters, lifecycle status changes, and adoption returns.
+- **Medical tracking:** medical history, vaccination records, overdue-vaccination reports, and vaccination checks before a pet becomes available.
+- **Foster management:** account approval, capacity checks, placement assignment, placement completion, and daily care updates.
+- **Adoption workflow:** adopter profiles, application submission and review, adoption approval, and automatic follow-ups at 7, 30, and 90 days.
+- **Semantic recommendations:** lifestyle-to-pet matching using MiniLM embeddings and cosine similarity.
+- **Operational tools:** foster recommendations, an at-risk pet board, printable pet passports with QR codes, and lifecycle timelines.
+- **Administration:** user listing, adoption analytics, and audit-log viewing.
+- **Database access control:** PostgreSQL roles, table and column privileges, row-level security, and authorized workflow functions.
 
 ## Technology Stack
 
-- **Frontend:** Next.js, React, TypeScript
-- **Backend:** Next.js App Router and API routes
-- **Database:** PostgreSQL hosted on Neon
-- **Semantic Matching:** Transformers.js and the `Xenova/all-MiniLM-L6-v2` embedding model
-- **Vector Search:** PostgreSQL `pgvector` with cosine-similarity indexing
-- **Package Management:** npm
-- **Version Control:** Git and GitHub
-
-## Application Roles
-
-| Role | Responsibilities |
+| Area | Implementation |
 |---|---|
-| Administrator | View analytics, manage users, and review audit activity |
-| Staff | Manage operational workflows and review adoption applications where authorized |
-| Foster | Access foster-related functionality and placement information |
-| Adopter | Browse pets, maintain preferences, find suitable matches, and submit and track applications |
+| Application | Next.js 16 App Router, React 19, TypeScript |
+| Styling | Tailwind CSS 4 |
+| Backend | Next.js route handlers and server-rendered pages |
+| Database | PostgreSQL, hosted on Neon |
+| Database client | `pg` / node-postgres |
+| Authentication | JWT session cookies with `jose`; bcrypt password hashes |
+| Validation | Zod |
+| Semantic matching | Transformers.js (`@xenova/transformers`) |
+| Embedding model | `Xenova/all-MiniLM-L6-v2`, 384 dimensions |
+| Vector search | pgvector, cosine distance, HNSW index |
+| Database identity verification | Node.js HMAC signing and PostgreSQL `pgcrypto` |
+| Pet passports | QR codes generated with `qrcode` |
 
-Access to pages and API endpoints is controlled by role-based authorization. PostgreSQL also independently enforces roles, table/column privileges and row ownership. See [Database RBAC setup and commands](docs/DB_RBAC_GUIDE.md) before starting the app or applying this release.
+## Roles and Permissions
+
+| Role | Access |
+|---|---|
+| Guest | Browse public pet information, register, and log in |
+| Adopter | Maintain own profile, find matches, submit and view own applications, and complete own adoption follow-ups |
+| Foster | View own profile; approved fosters can access their placements and assigned pets’ medical records and submit updates for active placements |
+| Staff | Manage pets, medical records, vaccinations, foster approvals and placements, application reviews, and adoption workflows |
+| Admin | Staff operations, user listing, adoption analytics, and audit-log viewing |
+
+Self-registration supports **adopter** and **foster** accounts only. Foster accounts require approval before participating in placement workflows. Staff and admin accounts are provisioned through trusted maintenance operations, including the development account seed.
+
+The database grants administrative user-column permissions to the admin role; the current admin user page provides a listing rather than a complete account-editing interface.
+
+## Database-Enforced Authorization
+
+Access control operates at both the application and database layers:
+
+1. The application verifies the session cookie and applies page/API role checks.
+2. Every web database operation runs in a transaction through a restricted login.
+3. The backend signs the authenticated user ID together with the transaction ID.
+4. PostgreSQL verifies the signature and retrieves the user’s current role and active status.
+5. The connection uses `SET LOCAL ROLE` to select an allowlisted PostgreSQL role.
+6. Grants and RLS policies determine which operations and rows are accessible.
+
+### Database Roles
+
+The five application group roles are:
+
+- `pfa_guest`
+- `pfa_adopter`
+- `pfa_foster`
+- `pfa_staff`
+- `pfa_admin`
+
+These are `NOLOGIN` roles. The setup script creates a separate restricted login named `pfa_web_...` for the application connection.
+
+**RBAC controls operations; RLS controls row ownership.** For example, adopters cannot insert medical records, and an adopter’s application query cannot return another adopter’s applications—even without an ownership filter in the application query.
+
+### Access-Control Protections
+
+- RLS on all **18 business tables**.
+- Column privileges that prevent ordinary users from changing roles or approval flags.
+- Explicit caller checks in adoption, placement, return, and status-change functions.
+- Identity checks that prevent impersonation by changing a SQL session variable or selecting a more privileged group role.
+- Transaction-local context that is cleared on commit or rollback.
+- Security-invoker views and limited public timeline/vaccination-summary functions.
+- Protected audit/history writes through triggers; application users cannot forge or delete audit records.
+- Separate maintenance credentials for migrations, seeds, and embedding generation.
+
+The backend and database owner remain trusted components. Application users do not receive database credentials. Owner-level access is reserved for maintenance and is not used to demonstrate end-user RLS enforcement.
+
+See [the database RBAC guide](docs/DB_RBAC_GUIDE.md) for implementation details and demonstration queries.
+
+## Database Design
+
+| Area | Tables |
+|---|---|
+| Accounts | `users`, `roles` |
+| Pet lifecycle | `pets`, `pet_status_transitions`, `pet_status_history` |
+| Medical care | `medical_records`, `vaccinations`, `required_vaccines` |
+| Fostering | `foster_profiles`, `foster_placements`, `foster_updates` |
+| Adoption | `adopter_profiles`, `applications`, `adoptions`, `followups` |
+| Semantic vectors | `pet_embeddings`, `adopter_embeddings` |
+| Auditing | `audit_log` |
+
+Foreign keys, check constraints, unique indexes, triggers, and stored functions enforce data integrity. Workflow functions use transactions and row locks for operations such as foster placement and adoption approval.
+
+Adoption approval schedules follow-ups and rejects competing pending applications for the same pet.
+
+The schema also includes full-text pet search, reporting views, a foster-capacity view, and a computed pet-urgency score.
 
 ## Project Structure
 
-```text
-pet-foster-adoption/
-├── db/
-│   ├── migrations/       # Database schema and workflow migrations
-│   ├── seeds/            # Seed data
-│   └── ...
-├── src/
-│   ├── app/
-│   │   ├── admin/        # Admin-related routes, where applicable
-│   │   ├── adopter/      # Adopter pages
-│   │   ├── staff/        # Staff pages
-│   │   ├── api/          # Backend API routes
-│   │   └── ...
-│   ├── components/      # Shared UI components
-│   └── lib/             # Database access and shared utilities
-├── .env.example         # Environment variable template
-├── package.json
-└── README.md
-```
+| Path | Purpose |
+|---|---|
+| `src/app/` | Pages, layouts, and API route handlers |
+| `src/app/(public)/` | Public pages, registration, login, and pet browsing |
+| `src/app/(adopter)/` | Adopter pages |
+| `src/app/(foster)/` | Foster pages |
+| `src/app/(staff)/` | Staff pages |
+| `src/app/(admin)/` | Admin pages |
+| `src/components/` | Shared UI components |
+| `src/lib/` | Authentication, database access, validation, queries, and error handling |
+| `src/proxy.ts` | Role-aware page navigation checks |
+| `db/migrations/` | Ordered schema and authorization migrations |
+| `db/seeds/` | Development accounts and pet data |
+| `db/tests/` | Database authorization and lifecycle tests |
+| `db/rbac-setup.mjs` | Restricted-login and identity-key setup |
+| `db/rbac-check.mjs` | Runtime-role, RLS, and view configuration checks |
+| `seed-pet-embeddings.mjs` | Pet embedding generation and storage |
+| `docs/DB_RBAC_GUIDE.md` | Detailed setup, migration, and verification instructions |
 
-Some routes may be organized into Next.js route groups such as `(admin)`. Route groups organize code without appearing in the URL.
+Route-group names in parentheses organize the code without appearing in page URLs.
 
 ## Prerequisites
 
-Before running the application, ensure you have:
+- Node.js **20.9 or later**; Node.js 22 is suitable.
+- npm and Git.
+- PostgreSQL **15 or later**, with pgvector available and permission to install `pgcrypto`.
+- A schema-owner connection with role-creation permissions for initial setup.
+- Internet access for dependency installation and the initial embedding-model download.
 
-- Node.js compatible with the project's Next.js version
-- npm
-- A Neon PostgreSQL project
-- Git
-- An internet connection for downloading the embedding model when needed
+Use a dedicated project database. The authorization migration hardens the `public` schema and its views, so it should not be applied to a database shared with unrelated applications.
 
-## Getting Started
+## Local Setup
 
-### 1. Clone the repository
+Run commands from the repository root, where `package.json` is located. Continue only when the preceding command succeeds.
+
+### 1. Clone and Install
 
 ```bash
 git clone https://github.com/sanjana-g22/pet-foster-adoption.git
 cd pet-foster-adoption
+npm ci
 ```
 
-### 2. Install dependencies
+### 2. Create the Environment File
 
-```bash
-npm install
-```
+For a new checkout only:
 
-### 3. Configure environment variables
-
-For a new checkout only, create a local environment file by copying the example. Existing installations must keep their current `.env.local`:
-
-**Windows CMD:**
+**Windows Command Prompt:**
 
 ```bat
 copy .env.example .env.local
@@ -111,28 +167,38 @@ copy .env.example .env.local
 cp .env.example .env.local
 ```
 
-Configure the variables required by the application. These may include:
+Existing installations should preserve their current `.env.local`.
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | Restricted web connection generated by `npm run db:rbac:setup` |
-| `DATABASE_URL_DIRECT` | Schema-owner direct connection for migrations and maintenance |
-| `DATABASE_CONTEXT_SECRET` | Generated database identity-signing key; keep private |
-| `PFA_DB_LOGIN` | Generated restricted database login name |
-| `JWT_SECRET` | Secret used for signing or verifying authentication tokens |
-| `NEXT_PUBLIC_APP_URL` | Public application URL; use `http://localhost:3000` locally |
+Set the following values:
 
-Use the exact variable names documented in `.env.example`. Other environment variables may be required depending on the configured application features.
+```dotenv
+DATABASE_URL_DIRECT="postgresql://OWNER:PASSWORD@HOST/DATABASE?sslmode=require"
+JWT_SECRET="REPLACE_WITH_A_RANDOM_SECRET"
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
 
-**Security:** Never commit `.env.local`, database passwords, JWT secrets, API keys, or other credentials to GitHub. Use environment variables in deployment settings for production.
+Replace the example URL with the complete **schema-owner, direct/unpooled connection URL** for the intended database. For Neon, select the correct branch, database, and owner role when copying it. The hostname is the endpoint after `@`, not the username such as `neondb_owner`.
 
-### 4. Set up the database
+Generate a JWT secret for a new environment:
 
-Create or use a Neon PostgreSQL database and configure the connection strings in `.env.local`.
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
 
-The SQL migrations in `db/migrations/` define the database schema, including tables, types, indexes, views, triggers, and workflow logic.
+Copy the generated value into `JWT_SECRET`. Keep an existing installation’s secret unless intentionally rotating it.
 
-Apply migrations using the project's configured migration command:
+| Variable | Purpose | Configuration |
+|---|---|---|
+| `DATABASE_URL_DIRECT` | Owner connection for maintenance | Set manually |
+| `JWT_SECRET` | JWT session signing; at least 32 characters | Set manually |
+| `NEXT_PUBLIC_APP_URL` | Application origin | Set manually |
+| `DATABASE_URL` | Restricted web connection | Generated by RBAC setup |
+| `DATABASE_CONTEXT_SECRET` | Database identity-signing key | Generated/retrieved by RBAC setup |
+| `PFA_DB_LOGIN` | Restricted login name | Generated by RBAC setup |
+
+Keep credentials and `.env.local` backups out of version control.
+
+### 3. Migrate and Configure Permissions
 
 ```bash
 npm run db:migrate
@@ -140,115 +206,162 @@ npm run db:rbac:setup
 npm run db:rbac:check
 ```
 
-Only run migrations against a database you are authorized to modify. Coordinate shared database changes with the project team.
+The migration runner records applied files in `schema_migrations`. The setup command creates the restricted login, installs or retrieves the identity-signing key, and updates `.env.local`.
 
-If seed scripts are provided, use the relevant documented commands to populate development or test data.
+The configuration check verifies runtime restrictions, RLS on the business tables, and caller permissions on views.
 
-### 5. Start the development server
+Do not use the schema-owner URL as the web application’s `DATABASE_URL`.
+
+### 4. Optional Development Data
+
+For an empty development/demo database:
+
+```bash
+npm run db:seed
+```
+
+**Do not use seeding as an upgrade step.** The pet seed script deletes and recreates its demo data; rerunning account seeds can reset demo-account details and passwords.
+
+The account seed creates these demo users, all with password `Demo@12345`:
+
+| Role | Email |
+|---|---|
+| Admin | `admin@demo.com` |
+| Staff | `staff@demo.com` |
+| Foster | `foster1@demo.com`, `foster2@demo.com` |
+| Adopter | `adopter1@demo.com`, `adopter2@demo.com` |
+
+These are development credentials, not production accounts.
+
+### 5. Start the Application
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000).
 
-The development server supports hot reloading as you edit the application.
+The database connectivity endpoint is [http://localhost:3000/api/health](http://localhost:3000/api/health).
+
+## Updating an Existing Installation
+
+Preserve `.env.local`, stop the running application, and test schema changes on an isolated database or Neon branch first. A Git branch isolates code, not database changes.
+
+After pulling the updated code, select the intended database using `DATABASE_URL_DIRECT`, then run:
+
+```bash
+npm ci
+npm run db:migrate
+npm run db:rbac:setup
+npm run db:rbac:check
+```
+
+The RBAC release adds:
+
+- `080_database_rbac.sql`
+- `081_protected_workflows.sql`
+
+Previously recorded migrations are skipped. Do not delete migration-history rows, reset the database, or reseed existing data to apply this update.
+
+A GitHub merge does not execute SQL migrations. Apply the same release to the shared database separately, coordinate the change with other users of that database, and restart the application with its updated environment.
 
 ## Semantic Pet Matching
 
-Pawfect Match uses text embeddings to compare adopter preferences with pet information.
+The matching pipeline:
 
-The matching workflow consists of:
+1. Builds descriptive text from pet attributes.
+2. Generates normalized, 384-dimensional MiniLM embeddings.
+3. Stores vectors and their source text in `pet_embeddings`.
+4. Embeds the adopter’s submitted lifestyle description.
+5. Uses pgvector cosine distance to return up to **12 available pets**, optionally filtered by species.
 
-1. Constructing a descriptive text representation from each pet's attributes.
-2. Generating a numerical embedding using `Xenova/all-MiniLM-L6-v2`.
-3. Storing pet embeddings in the PostgreSQL `pet_embeddings` table.
-4. Comparing preference-based embeddings with stored pet embeddings using vector similarity.
-5. Returning relevant pets for the adopter to review.
+Generate or refresh stored pet embeddings after creating or updating pet data:
 
-The embedding table stores the pet ID, vector representation, source text, model name, and update timestamp. PostgreSQL `pgvector` supports similarity search, while the project's indexes help make retrieval more efficient.
+```bash
+node seed-pet-embeddings.mjs
+```
 
-A pet's similarity score indicates semantic relevance; it should not be interpreted as a guarantee that the pet is suitable for a particular home.
+This is a maintenance operation using `DATABASE_URL_DIRECT`. The first run downloads the model. Without stored pet embeddings, semantic matching has no candidates to return.
 
-If the project includes an embedding-generation script, review its configuration and database target before running it. Generating embeddings writes to the database and should only be performed against an authorized environment.
+Similarity reflects textual relevance; it is not an adoption probability or a guarantee of suitability. Staff review remains part of the adoption process.
 
-## Application Workflow
+## Testing
 
-A typical adoption workflow is:
+```bash
+npm run db:rbac:check
+npm run db:test:rbac
+npm run db:test:lifecycle
+npm run lint
+npm run typecheck
+npm run build
+```
 
-1. Staff maintain pet records and their current status.
-2. Adopters browse available pets and explore recommendations.
-3. Adopters maintain their profiles and submit applications.
-4. Authorized staff review submitted applications.
-5. Application decisions update the adoption workflow according to the configured business rules.
-6. Follow-ups can be scheduled to support post-adoption monitoring.
-7. Administrators review adoption metrics and recorded activity.
+| Check | Coverage |
+|---|---|
+| RBAC configuration | Restricted runtime login, RLS configuration, invoker views |
+| RBAC integration suite | 55 checks covering ownership isolation, denied writes, identity spoofing, role switching, workflow access, and audit protection |
+| Lifecycle suite | 13 checks covering status transitions, vaccinations, foster capacity, placement uniqueness, constraints, search, and audit recording |
+| ESLint / TypeScript / build | Code quality, type checking, and production compilation |
 
-The exact transitions, eligibility rules, and follow-up schedules are defined by the database migrations and application implementation.
+The RBAC suite uses the actual restricted login to send SQL directly; the website does not need to be running. It creates uniquely named fixtures and cleans them up on normal completion or handled failure. The lifecycle suite rolls back its test changes.
 
-## Available npm Scripts
+Use a development database for testing.
 
-Use the scripts defined in `package.json`:
+For manual verification, check public browsing, each role’s dashboard, profile saving, application review, foster updates, and pet passports. Confirm that another user’s records and unauthorized operations remain inaccessible.
+
+## Commands
 
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Start the development server |
-| `npm run build` | Compile and validate the production build |
-| `npm run start` | Start the production server after building |
-| `npm run lint` | Run linting, if configured |
-| `npm run db:migrate` | Apply database migrations |
-| `npm run db:test:rbac` | Run 55 restricted-login authorization checks |
-| `npm run db:test:lifecycle` | Run 13 lifecycle checks |
-| `npm run typecheck` | Check TypeScript |
-| `npm run db:seed` | Run the configured seed workflow, if available |
-
-Additional scripts may be available for individual seed tasks or other project utilities.
-
-## Testing and Validation
-
-Before submitting changes or deploying the application:
-
-1. Install dependencies successfully.
-2. Run `npm run build` and resolve build errors.
-3. Verify authentication and role-based access.
-4. Test pet browsing and semantic matching.
-5. Test adopter profile saving and application submission.
-6. Verify that submitted applications appear in the tracker and authorized review interfaces.
-7. Test adoption status transitions and follow-up behavior using appropriate test data.
-8. Verify admin analytics, user management, and audit log pages.
-9. Confirm that credentials and local environment files are not included in Git commits.
-
-Use test accounts and a development database when testing actions that change adoption records.
+| `npm run build` | Build the production application |
+| `npm run start` | Run the production build |
+| `npm run lint` | Run ESLint |
+| `npm run typecheck` | Run TypeScript checks |
+| `npm run db:migrate` | Apply unapplied SQL migrations |
+| `npm run db:rbac:setup` | Configure the restricted database login and signing key |
+| `npm run db:rbac:check` | Verify database access-control configuration |
+| `npm run db:test:rbac` | Run database authorization tests |
+| `npm run db:test:lifecycle` | Run lifecycle and integrity tests |
+| `npm run db:seed:accounts` | Seed development accounts |
+| `npm run db:seed:pets` | Seed demo pets and related records |
+| `npm run db:seed` | Run both seed scripts |
+| `node seed-pet-embeddings.mjs` | Generate and store pet embeddings |
 
 ## Deployment
 
-The application can be deployed to a platform that supports Next.js, such as Vercel.
+Use a host that supports the Next.js Node.js runtime and outbound PostgreSQL connections.
 
-General deployment steps:
+1. Test the release against a separate database first.
+2. Apply migrations and run RBAC setup for the deployment database through a trusted maintenance environment.
+3. Configure the web deployment with `DATABASE_URL`, `DATABASE_CONTEXT_SECRET`, `JWT_SECRET`, and `NEXT_PUBLIC_APP_URL`.
+4. Keep the owner connection out of the web runtime when maintenance runs separately.
+5. Build and start the application.
+6. Verify database connectivity, logins, role isolation, and key workflows.
 
-1. Import the GitHub repository into the hosting platform.
-2. Configure the required environment variables securely.
-3. Ensure the production database schema is up to date.
-4. Run the production build.
-5. Deploy the application and verify the main workflows.
+```bash
+npm run build
+npm run start
+```
 
-Use a separate development or staging database for testing schema changes before applying them to production.
+Embedding inference requires model access/cache availability and sufficient runtime memory and execution time. Check the target host’s constraints before relying on semantic matching in deployment.
+
+## Troubleshooting
+
+| Issue | Action |
+|---|---|
+| `ENOTFOUND neondb_owner` | Recopy the complete connection URL; the owner name belongs before the password, not in the hostname position |
+| Permission denied creating roles or extensions | Use the schema-owner connection with the required maintenance privileges |
+| Unsafe web database login | Run `db:rbac:setup`, then restart the app with its generated `DATABASE_URL` |
+| Missing or mismatched identity key | Run setup against the intended database; do not invent a replacement `DATABASE_CONTEXT_SECRET` |
+| No semantic matches | Generate stored pet embeddings and confirm available pets exist |
+| Role changed but navigation is stale | Log out and log in again; page navigation uses the role stored in the session cookie |
+| Old migration reports an existing relation | Reconcile the existing schema and migration history before proceeding; do not reset tables or blindly mark migrations applied |
+
+For detailed recovery and demonstration steps, see [DB_RBAC_GUIDE.md](docs/DB_RBAC_GUIDE.md).
 
 ## Contributing
 
-1. Create a feature branch for your changes.
-2. Implement and test the feature locally.
-3. Review your Git diff and ensure no secrets are included.
-4. Commit your changes with a descriptive message.
-5. Push the branch to GitHub.
-6. Open a pull request for review before merging into the main branch.
+Create a feature branch, make the change, run the relevant checks, and open a pull request against `main`.
 
-Coordinate database migrations with other contributors to avoid conflicting schema changes.
-
-## License
-
-Add the project's chosen license here if one has been selected.
-
-## Acknowledgements
-
-Built using Next.js, React, PostgreSQL, Neon, and open-source machine learning tools.
+Include migration and environment requirements when changing database access. Review staged files to ensure credentials are not included, and coordinate shared-database migrations with the team.
