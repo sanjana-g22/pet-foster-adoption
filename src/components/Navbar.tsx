@@ -62,6 +62,9 @@ export default async function Navbar() {
                 </span>
               </Link>
 
+              {["foster", "staff", "admin"].includes(user.role) && (
+                <Link href="/intakes" className="rounded-full px-3 py-2 font-semibold text-[#245c45] hover:bg-[#e8efe7]">Pet intake requests</Link>
+              )}
               <LogoutButton />
             </>
           ) : (
